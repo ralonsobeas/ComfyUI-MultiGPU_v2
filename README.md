@@ -1,5 +1,7 @@
 # ComfyUI-MultiGPU
 
+### FIXING ISSUES FROM ORIGINAL ComfyUI-MultiGPU REPOSITORY
+
 ### Experimental nodes for using multiple GPUs in a single ComfyUI workflow.
 
 This extension adds new nodes for model loading that allow you to specify the GPU to use for each model. It monkey patches the memory management of ComfyUI in a hacky way and is neither a comprehensive solution nor a well-tested one. Use at your own risk.
