@@ -74,7 +74,8 @@ class UNETLoaderMultiGPU:
             dtype = torch.float8_e5m2
 
         unet_path = folder_paths.get_full_path("unet", unet_name)
-        model = comfy.sd.load_unet(unet_path, dtype=dtype)
+        #model = comfy.sd.load_unet(unet_path, dtype=dtype)
+        model = comfy.sd.load_diffusion_model(unet_path, model_options={"dtype":dtype})
         return (model,)
 
 
