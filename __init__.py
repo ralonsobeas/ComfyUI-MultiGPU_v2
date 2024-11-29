@@ -3,8 +3,32 @@ import folder_paths
 import comfy.sd
 import comfy.model_management
 
+import os
+
+import folder_paths
+
+import importlib
+
+# Importar el módulo desde custom_nodes/x-flux-comfyui/xflux/src/flux/util.py
+flux_xlabs_util = importlib.import_module('custom_nodes.x-flux-comfyui.xflux.src.flux.util')
+
+# Acceder a las funciones del módulo importado
+load_controlnet = getattr(flux_xlabs_util, 'load_controlnet')
+
+
+# Importar el módulo desde custom_nodes/x-flux-comfyui/xflux/src/flux/util.py
+flux__xlabs_nodes = importlib.import_module('custom_nodes.x-flux-comfyui.nodes')
+
+# Acceder a las funciones del módulo importado
+load_checkpoint_controlnet = getattr(flux__xlabs_nodes, 'load_checkpoint_controlnet')
+
 current_device = "cuda:0"
 
+
+dir_xlabs = os.path.join(folder_paths.models_dir, "xlabs")
+os.makedirs(dir_xlabs, exist_ok=True)
+dir_xlabs_controlnets = os.path.join(dir_xlabs, "controlnets")
+os.makedirs(dir_xlabs_controlnets, exist_ok=True)
 
 def get_torch_device_patched():
     global current_device
@@ -274,6 +298,40 @@ class DualCLIPLoaderMultiGPU:
         return (clip,)
 
 
+
+class LoadFluxControlNetMultiGPU:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"model_name": (["flux-dev", "flux-dev-fp8", "flux-schnell"],),
+                            "controlnet_path": (folder_paths.get_filename_list("xlabs_controlnets"), ),
+                            "device": ([f"cuda:{i}" for i in range(torch.cuda.device_count())],),
+        }}
+
+    RETURN_TYPES = ("FluxControlNet",)
+    RETURN_NAMES = ("ControlNet",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "XLabsNodes"
+
+    def loadmodel(self, model_name, controlnet_path, device):
+
+        global current_device
+        current_device = device
+
+        checkpoint=None
+        controlnet=None
+
+        controlnet = load_controlnet(model_name, device)
+        checkpoint = load_checkpoint_controlnet(os.path.join(dir_xlabs_controlnets, controlnet_path))
+        if checkpoint is not None:
+            controlnet.load_state_dict(checkpoint)
+            control_type = "canny"
+        ret_controlnet = {
+            "model": controlnet,
+            "control_type": control_type,
+        }
+
+        return (ret_controlnet,)
+
 NODE_CLASS_MAPPINGS = {
     "CheckpointLoaderMultiGPU": CheckpointLoaderMultiGPU,
     "UNETLoaderMultiGPU": UNETLoaderMultiGPU,
@@ -281,6 +339,7 @@ NODE_CLASS_MAPPINGS = {
     "ControlNetLoaderMultiGPU": ControlNetLoaderMultiGPU,
     "CLIPLoaderMultiGPU": CLIPLoaderMultiGPU,
     "DualCLIPLoaderMultiGPU": DualCLIPLoaderMultiGPU,
+    "LoadFluxControlNetMultiGPU": LoadFluxControlNetMultiGPU,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -290,4 +349,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ControlNetLoaderMultiGPU": "Load ControlNet Model (Multi-GPU)",
     "CLIPLoaderMultiGPU": "Load CLIP (Multi-GPU)",
     "DualCLIPLoaderMultiGPU": "DualCLIPLoader (Multi-GPU)",
+    "LoadFluxControlNetMultiGPU": "Load Flux ControlNet (Multi-GPU)",
 }
