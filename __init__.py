@@ -24,6 +24,8 @@ flux__xlabs_nodes = importlib.import_module('custom_nodes.x-flux-comfyui.nodes')
 # Acceder a las funciones del módulo importado
 load_checkpoint_controlnet = getattr(flux__xlabs_nodes, 'load_checkpoint_controlnet')
 
+XlabsSampler = getattr(flux__xlabs_nodes, 'XlabsSampler')
+
 current_device = "cuda:0"
 
 
@@ -375,6 +377,45 @@ class ApplyFluxControlNetMultiGPU:
             }]
         return (ret_cont,)
 
+class XlabsSamplerMultiGPU(XlabsSampler):
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                    "model": ("MODEL",),
+                    "conditioning": ("CONDITIONING",),
+                    "neg_conditioning": ("CONDITIONING",),
+                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    "steps": ("INT",  {"default": 20, "min": 1, "max": 100}),
+                    "timestep_to_start_cfg": ("INT",  {"default": 20, "min": 0, "max": 100}),
+                    "true_gs": ("FLOAT",  {"default": 3, "min": 0, "max": 100}),
+                    "image_to_image_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "device": ([f"cuda:{i}" for i in range(torch.cuda.device_count())],),
+                },
+            "optional": {
+                    "latent_image": ("LATENT", {"default": None}),
+                    "controlnet_condition": ("ControlNetCondition", {"default": None}),
+                }
+            } 
+
+    def sampling(self, model, conditioning, neg_conditioning,
+                 noise_seed, steps, timestep_to_start_cfg, true_gs,
+                 image_to_image_strength, denoise_strength,
+                 latent_image=None, controlnet_condition=None, device="cuda:0"
+                 ):
+        global current_device
+        current_device = device
+
+        
+        torch.cuda.device(device)
+
+        return super().sampling(model, conditioning, neg_conditioning,
+                 noise_seed, steps, timestep_to_start_cfg, true_gs,
+                 image_to_image_strength, denoise_strength,
+                 latent_image, controlnet_condition)
+        
 NODE_CLASS_MAPPINGS = {
     "CheckpointLoaderMultiGPU": CheckpointLoaderMultiGPU,
     "UNETLoaderMultiGPU": UNETLoaderMultiGPU,
@@ -384,6 +425,7 @@ NODE_CLASS_MAPPINGS = {
     "DualCLIPLoaderMultiGPU": DualCLIPLoaderMultiGPU,
     "LoadFluxControlNetMultiGPU": LoadFluxControlNetMultiGPU,
     "ApplyFluxControlNetMultiGPU": ApplyFluxControlNetMultiGPU,
+    "XlabsSamplerMultiGPU": XlabsSamplerMultiGPU,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -395,4 +437,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DualCLIPLoaderMultiGPU": "DualCLIPLoader (Multi-GPU)",
     "LoadFluxControlNetMultiGPU": "Load Flux ControlNet (Multi-GPU)",
     "ApplyFluxControlNetMultiGPU": "Apply Flux ControlNet (Multi-GPU)",
+    "XlabsSamplerMultiGPU": "XlabsSampler (Multi-GPU)",
 }
