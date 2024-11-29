@@ -9,6 +9,8 @@ import folder_paths
 
 import importlib
 
+import numpy as np
+
 # Importar el módulo desde custom_nodes/x-flux-comfyui/xflux/src/flux/util.py
 flux_xlabs_util = importlib.import_module('custom_nodes.x-flux-comfyui.xflux.src.flux.util')
 
@@ -317,9 +319,6 @@ class LoadFluxControlNetMultiGPU:
         global current_device
         current_device = device
 
-        checkpoint=None
-        controlnet=None
-
         controlnet = load_controlnet(model_name, device)
         checkpoint = load_checkpoint_controlnet(os.path.join(dir_xlabs_controlnets, controlnet_path))
         if checkpoint is not None:
@@ -331,6 +330,50 @@ class LoadFluxControlNetMultiGPU:
         }
 
         return (ret_controlnet,)
+    
+class ApplyFluxControlNetMultiGPU:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "controlnet": ("FluxControlNet",),
+                    "image": ("IMAGE", ),
+                    "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                    "device": ([f"cuda:{i}" for i in range(torch.cuda.device_count())],),
+                },
+                "optional": {
+                    "controlnet_condition": ("ControlNetCondition", {"default": None}),
+                }
+        }
+
+    RETURN_TYPES = ("ControlNetCondition",)
+    RETURN_NAMES = ("controlnet_condition",)
+    FUNCTION = "prepare"
+    CATEGORY = "XLabsNodes"
+
+    def prepare(self, controlnet, image, strength, device, controlnet_condition = None):
+        global current_device
+        current_device = device
+
+        controlnet_image = torch.from_numpy((np.array(image) * 2) - 1)
+        controlnet_image = controlnet_image.permute(0, 3, 1, 2).to(torch.bfloat16).to(device)
+
+        if controlnet_condition is None:
+            ret_cont = [{
+                "img": controlnet_image,
+                "controlnet_strength": strength,
+                "model": controlnet["model"],
+                "start": 0.0,
+                "end": 1.0
+            }]
+        else:
+            ret_cont = controlnet_condition+[{
+                "img": controlnet_image,
+                "controlnet_strength": strength,
+                "model": controlnet["model"],
+                "start": 0.0,
+                "end": 1.0
+            }]
+        return (ret_cont,)
 
 NODE_CLASS_MAPPINGS = {
     "CheckpointLoaderMultiGPU": CheckpointLoaderMultiGPU,
@@ -340,6 +383,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPLoaderMultiGPU": CLIPLoaderMultiGPU,
     "DualCLIPLoaderMultiGPU": DualCLIPLoaderMultiGPU,
     "LoadFluxControlNetMultiGPU": LoadFluxControlNetMultiGPU,
+    "ApplyFluxControlNetMultiGPU": ApplyFluxControlNetMultiGPU,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -350,4 +394,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPLoaderMultiGPU": "Load CLIP (Multi-GPU)",
     "DualCLIPLoaderMultiGPU": "DualCLIPLoader (Multi-GPU)",
     "LoadFluxControlNetMultiGPU": "Load Flux ControlNet (Multi-GPU)",
+    "ApplyFluxControlNetMultiGPU": "Apply Flux ControlNet (Multi-GPU)",
 }
